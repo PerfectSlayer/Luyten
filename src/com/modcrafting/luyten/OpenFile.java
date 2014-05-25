@@ -15,17 +15,21 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+
 import javax.swing.JLabel;
 import javax.swing.JScrollBar;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.event.HyperlinkEvent;
+
 import org.fife.ui.rsyntaxtextarea.LinkGenerator;
 import org.fife.ui.rsyntaxtextarea.LinkGeneratorResult;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rtextarea.RTextScrollPane;
+
+import com.modcrafting.luyten.view.editor.Tab;
 import com.strobel.assembler.metadata.MetadataSystem;
 import com.strobel.assembler.metadata.TypeDefinition;
 import com.strobel.decompiler.DecompilationOptions;
@@ -56,8 +60,9 @@ public class OpenFile implements SyntaxConstants {
 
 	MainWindow mainWindow;
 	RTextScrollPane scrollPane;
-	Panel image_pane;
 	RSyntaxTextArea textArea;
+	/** The file editor tab. */
+	Tab tab;
 	String name;
 	String path;
 
@@ -596,7 +601,7 @@ public class OpenFile implements SyntaxConstants {
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((name == null) ? 0 : name.hashCode());
+		result = prime * result + ((path == null) ? 0 : path.hashCode());
 		return result;
 	}
 
@@ -609,10 +614,10 @@ public class OpenFile implements SyntaxConstants {
 		if (getClass() != obj.getClass())
 			return false;
 		OpenFile other = (OpenFile) obj;
-		if (name == null) {
-			if (other.name != null)
+		if (path == null) {
+			if (other.path != null)
 				return false;
-		} else if (!name.equals(other.name))
+		} else if (!path.equals(other.path))
 			return false;
 		return true;
 	}
