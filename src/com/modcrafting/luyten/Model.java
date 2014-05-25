@@ -45,7 +45,12 @@ import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rtextarea.RTextScrollPane;
 
+import com.modcrafting.luyten.model.exception.FileEntryNotFoundException;
+import com.modcrafting.luyten.model.exception.FileIsBinaryException;
+import com.modcrafting.luyten.model.exception.TooLargeFileException;
 import com.modcrafting.luyten.view.editor.Tab;
+import com.modcrafting.luyten.view.find.FindBox;
+import com.modcrafting.luyten.view.tree.FileCellRenderer;
 import com.strobel.assembler.InputTypeLoader;
 import com.strobel.assembler.metadata.ITypeLoader;
 import com.strobel.assembler.metadata.JarTypeLoader;
@@ -112,7 +117,7 @@ public class Model extends JSplitPane {
 		tree = new JTree();
 		tree.setModel(new DefaultTreeModel(null));
 		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-		tree.setCellRenderer(new CellRenderer());
+		tree.setCellRenderer(new FileCellRenderer());
 		TreeListener tl = new TreeListener();
 		tree.addMouseListener(tl);
 

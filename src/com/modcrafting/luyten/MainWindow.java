@@ -14,8 +14,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+
 import javax.swing.AbstractAction;
 import javax.swing.Action;
+import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
@@ -24,7 +26,10 @@ import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.KeyStroke;
 import javax.swing.border.BevelBorder;
+
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
+
+import com.modcrafting.luyten.view.find.FindBox;
 
 /**
  * Dispatcher
@@ -54,35 +59,27 @@ public class MainWindow extends JFrame {
 		this.adjustWindowPositionBySavedState();
 		this.setHideFindBoxOnMainWindowFocus();
 		this.setQuitOnWindowClosing();
-		this.setTitle(TITLE);
+		this.setTitle(MainWindow.TITLE);
 
-		JPanel pane = new JPanel();
-		pane.setBorder(new BevelBorder(BevelBorder.LOWERED));
-		pane.setPreferredSize(new Dimension(this.getWidth(), 24));
-		pane.setLayout(new BoxLayout(pane, BoxLayout.X_AXIS));
+		JPanel footerPanel = new JPanel();
+		footerPanel.setLayout(new BoxLayout(footerPanel, BoxLayout.X_AXIS));
+		footerPanel.setPreferredSize(new Dimension(this.getWidth(), 24));
 
-		JPanel panel1 = new JPanel();
-		label = new JLabel(" ");
-		label.setHorizontalAlignment(JLabel.LEFT);
-		panel1.setLayout(new BoxLayout(panel1, BoxLayout.X_AXIS));
-		panel1.setBorder(new BevelBorder(BevelBorder.LOWERED));
-		panel1.setPreferredSize(new Dimension(this.getWidth() / 2, 20));
-		panel1.add(label);
-		pane.add(panel1);
+		label = new JLabel();
+		label.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
+		label.setPreferredSize(new Dimension(this.getWidth() / 2, 20));
+		footerPanel.add(label);
 
-		panel1 = new JPanel();
 		bar = new JProgressBar();
 		bar.setIndeterminate(true);
 		bar.setOpaque(false);
 		bar.setVisible(false);
-		panel1.setLayout(new BoxLayout(panel1, BoxLayout.X_AXIS));
-		panel1.setPreferredSize(new Dimension(this.getWidth() / 2, 20));
-		panel1.add(bar);
-		pane.add(panel1);
+		bar.setPreferredSize(new Dimension(this.getWidth() / 2, 20));
+		footerPanel.add(bar);
+		this.add(footerPanel, BorderLayout.SOUTH);
 
 		model = new Model(this);
 		this.getContentPane().add(model);
-		this.add(pane, BorderLayout.SOUTH);
 
 		if (fileFromCommandLine != null) {
 			model.loadFile(fileFromCommandLine);

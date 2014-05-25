@@ -1,4 +1,4 @@
-package com.modcrafting.luyten;
+package com.modcrafting.luyten.view.find;
 
 import java.awt.Dimension;
 import java.awt.Toolkit;
@@ -6,6 +6,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
@@ -19,9 +20,14 @@ import javax.swing.JLabel;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
+
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.SearchContext;
 import org.fife.ui.rtextarea.SearchEngine;
+
+import com.modcrafting.luyten.ConfigSaver;
+import com.modcrafting.luyten.MainWindow;
+import com.modcrafting.luyten.WindowPosition;
 
 public class FindBox extends JDialog {
 	private static final long serialVersionUID = -4125409760166690462L;
