@@ -20,11 +20,8 @@ import java.util.TreeSet;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
-import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
@@ -118,26 +115,16 @@ public class Model extends JSplitPane {
 		tree.setModel(new DefaultTreeModel(null));
 		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
 		tree.setCellRenderer(new FileCellRenderer());
-		TreeListener tl = new TreeListener();
-		tree.addMouseListener(tl);
-
-		JPanel panel2 = new JPanel();
-		panel2.setLayout(new BoxLayout(panel2, 1));
-		panel2.setBorder(BorderFactory.createTitledBorder("Structure"));
-		panel2.add(new JScrollPane(tree));
+		tree.addMouseListener(new TreeListener());
 
 		house = new JTabbedPane();
 		house.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
 		house.addChangeListener(new TabChangeListener());
 
-		JPanel panel = new JPanel();
-		panel.setLayout(new BoxLayout(panel, 1));
-		panel.setBorder(BorderFactory.createTitledBorder("Code"));
-		panel.add(house);
 		this.setOrientation(JSplitPane.HORIZONTAL_SPLIT);
 		this.setDividerLocation(250%mainWindow.getWidth());
-		this.setLeftComponent(panel2);
-		this.setRightComponent(panel);
+		this.setLeftComponent(new JScrollPane(tree));
+		this.setRightComponent(house);
 
 		decompilationOptions = new DecompilationOptions();
 		decompilationOptions.setSettings(settings);

@@ -152,7 +152,7 @@ public class MainMenuBar extends JMenuBar {
 		fileMenu.add(menuItem);
 
 		menuItem = new JMenuItem("Save All...");
-		menuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, ActionEvent.CTRL_MASK));
+		menuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, ActionEvent.CTRL_MASK|ActionEvent.SHIFT_MASK));
 		menuItem.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
