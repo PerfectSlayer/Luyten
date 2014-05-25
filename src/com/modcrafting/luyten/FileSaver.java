@@ -119,14 +119,18 @@ public class FileSaver {
 			} else {
 				mass = jarEntryFilter.getAllEntriesFromJar();
 			}
+			this.bar.setMaximum(mass.size());
+			this.bar.setIndeterminate(false);
 
 			Enumeration<JarEntry> ent = jfile.entries();
+			int entryCount = 0;
 			while (ent.hasMoreElements()) {
 				JarEntry entry = ent.nextElement();
 				if (!mass.contains(entry.getName()))
 					continue;
 				label.setText("Extracting: " + entry.getName());
-				bar.setVisible(true);
+				bar.setValue(entryCount);
+				entryCount++;
 				if (entry.getName().endsWith(".class")) {
 					JarEntry etn = new JarEntry(entry.getName().replace(".class", ".java"));
 					label.setText("Extracting: " + etn.getName());
@@ -172,7 +176,8 @@ public class FileSaver {
 					}
 				}
 			}
-
+			
+			this.bar.setIndeterminate(true);
 		}
 	}
 

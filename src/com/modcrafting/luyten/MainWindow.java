@@ -74,6 +74,7 @@ public class MainWindow extends JFrame {
 		bar.setIndeterminate(true);
 		bar.setOpaque(false);
 		bar.setVisible(false);
+		bar.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 4));
 		bar.setPreferredSize(new Dimension(this.getWidth() / 2, 20));
 		footerPanel.add(bar);
 		this.add(footerPanel, BorderLayout.SOUTH);
