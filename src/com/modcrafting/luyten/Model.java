@@ -512,7 +512,10 @@ public class Model extends JSplitPane {
 			if (typeLoader!=null) {
 				Model.this.typeLoader.getTypeLoaders().remove(typeLoader);
 			}
-			Closer.tryClose(jarFile);
+			try {
+				this.jarFile.close();
+			} catch (Throwable throwable) {
+			}
 		}
 
 		@SuppressWarnings("unused")
@@ -825,7 +828,10 @@ public class Model extends JSplitPane {
 		final State oldState = state;
 		Model.this.state = null;
 		if (oldState!=null) {
-			Closer.tryClose(oldState);
+			try {
+				oldState.close();
+			} catch (Throwable throwable) {
+			}
 		}
 
 		hmap.clear();
