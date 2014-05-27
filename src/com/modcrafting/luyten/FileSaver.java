@@ -16,9 +16,12 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.zip.ZipException;
 import java.util.zip.ZipOutputStream;
+
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JProgressBar;
+
+import com.modcrafting.luyten.model.JarLister;
 import com.strobel.assembler.metadata.ITypeLoader;
 import com.strobel.assembler.metadata.JarTypeLoader;
 import com.strobel.assembler.metadata.MetadataSystem;
@@ -111,14 +114,8 @@ public class FileSaver {
 			decompilationOptions.setSettings(settings);
 			decompilationOptions.setFullDecompilation(true);
 
-			List<String> mass = null;
-			JarEntryFilter jarEntryFilter = new JarEntryFilter(jfile);
 			LuytenPreferences luytenPrefs = ConfigSaver.getLoadedInstance().getLuytenPreferences();
-			if (luytenPrefs.isFilterOutInnerClassEntries()) {
-				mass = jarEntryFilter.getEntriesWithoutInnerClasses();
-			} else {
-				mass = jarEntryFilter.getAllEntriesFromJar();
-			}
+			List<String> mass = JarLister.listFiles(jfile, !luytenPrefs.isFilterOutInnerClassEntries());
 			this.bar.setMaximum(mass.size());
 			this.bar.setIndeterminate(false);
 

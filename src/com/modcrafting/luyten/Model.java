@@ -41,6 +41,7 @@ import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rtextarea.RTextScrollPane;
 
+import com.modcrafting.luyten.model.JarLister;
 import com.modcrafting.luyten.model.exception.FileEntryNotFoundException;
 import com.modcrafting.luyten.model.exception.FileIsBinaryException;
 import com.modcrafting.luyten.model.exception.TooLargeFileException;
@@ -588,13 +589,7 @@ public class Model extends JSplitPane {
 						label.setText("Loading: "+jfile.getName());
 						bar.setVisible(true);
 
-						JarEntryFilter jarEntryFilter = new JarEntryFilter(jfile);
-						List<String> mass = null;
-						if (luytenPrefs.isFilterOutInnerClassEntries()) {
-							mass = jarEntryFilter.getEntriesWithoutInnerClasses();
-						} else {
-							mass = jarEntryFilter.getAllEntriesFromJar();
-						}
+						List<String> mass = JarLister.listFiles(jfile, !luytenPrefs.isFilterOutInnerClassEntries());
 						tree.setModel(buildTree(mass));
 
 						if (state==null) {
