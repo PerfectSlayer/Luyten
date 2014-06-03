@@ -5,13 +5,20 @@ import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -42,6 +49,7 @@ import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rtextarea.RTextScrollPane;
 
 import com.modcrafting.luyten.model.JarLister;
+import com.modcrafting.luyten.model.JarModel;
 import com.modcrafting.luyten.model.exception.FileEntryNotFoundException;
 import com.modcrafting.luyten.model.exception.FileIsBinaryException;
 import com.modcrafting.luyten.model.exception.TooLargeFileException;
@@ -678,7 +686,7 @@ public class Model extends JSplitPane {
 		// Ensure related child node exits
 		ResourceNode pathNode = node.getChild(entryPath);
 		if (pathNode==null) {
-			pathNode = new ResourceNode(entryPath);
+			pathNode = new ResourceNode(entryPath, !entryPath.contains("."));
 			node.addChild(pathNode);
 		}
 		// Go deeper in path
@@ -717,14 +725,24 @@ public class Model extends JSplitPane {
 	private TreeNode buildHierarchicalTreeNode(List<String> jarEntries) {
 		// Get root name
 		String fileName = this.getName(this.file.getName());
-		// Create resource nodes
-		ResourceNode rootNode = new ResourceNode(getName(file.getName()));
-		for (String jarEntry : jarEntries) {
-			String[] entryPaths = jarEntry.split("/");
-			this.buildRecursiveResourceNode(rootNode, 0, entryPaths);
+//		// Create resource nodes
+//		ResourceNode rootNode = new ResourceNode(getName(file.getName()), true);
+//		for (String jarEntry : jarEntries) {
+//			String[] entryPaths = jarEntry.split("/");
+//			this.buildRecursiveResourceNode(rootNode, 0, entryPaths);
+//		}
+//		// Sort resource nodes
+//		rootNode.sort();
+		
+		JarModel jarModel = null;
+		try {
+			jarModel = new JarModel(this.file.toPath());
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
-		// Sort resource nodes
-		rootNode.sort();
+		ResourceNode rootNode = jarModel.getResources();
+		
 		// Create tree nodes
 		DefaultMutableTreeNode rootTreeNode = new DefaultMutableTreeNode(new TreeNodeUserObject(fileName));
 		this.convertRecursiveTreeNode(rootNode, rootTreeNode);

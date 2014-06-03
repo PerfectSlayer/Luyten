@@ -10,6 +10,7 @@ import java.util.List;
  * @author Perfect Slayer (bruce.bujon@gmail.com)
  * 
  */
+// TODO Create subclasses (NodeJar, ClassNode)
 public class ResourceNode implements Comparable<ResourceNode> {
 	/** The node name. */
 	private final String name;
@@ -17,16 +18,20 @@ public class ResourceNode implements Comparable<ResourceNode> {
 	private final boolean isPackage;
 	/** The node children. */
 	private final List<ResourceNode> children;
+	/** The parent node (<code>null</code> if root node). */
+	private ResourceNode parent;
 
 	/**
 	 * Constructor.
 	 * 
 	 * @param name
 	 *            The resource node name.
+	 * @param isPackage
+	 *            <code>true</code> if the resource is a package, <code>false</code> otherwise.
 	 */
-	public ResourceNode(String name) {
+	public ResourceNode(String name, boolean isPackage) {
 		this.name = name;
-		this.isPackage = !name.contains(".");
+		this.isPackage = isPackage;
 		this.children = new ArrayList<>();
 	}
 
@@ -47,6 +52,7 @@ public class ResourceNode implements Comparable<ResourceNode> {
 	 */
 	public void addChild(ResourceNode child) {
 		this.children.add(child);
+		child.parent = this;
 	}
 
 	/**
@@ -71,6 +77,15 @@ public class ResourceNode implements Comparable<ResourceNode> {
 	 */
 	public List<ResourceNode> getChildren() {
 		return this.children;
+	}
+
+	/**
+	 * Get the parent node
+	 * 
+	 * @return The parent node (<code>null</code> if the root node).
+	 */
+	public ResourceNode getParent() {
+		return this.parent;
 	}
 
 	/**

@@ -121,6 +121,7 @@ public class FileSaver {
 
 			Enumeration<JarEntry> ent = jfile.entries();
 			int entryCount = 0;
+			Writer writer = new OutputStreamWriter(out);	// Use the same writer
 			while (ent.hasMoreElements()) {
 				JarEntry entry = ent.nextElement();
 				if (!mass.contains(entry.getName()))
@@ -139,7 +140,6 @@ public class FileSaver {
 						if ((type == null) || ((resolvedType = type.resolve()) == null)) {
 							throw new Exception("Unable to resolve type.");
 						}
-						Writer writer = new OutputStreamWriter(out);
 						settings.getLanguage().decompileType(resolvedType,
 								new PlainTextOutput(writer), decompilationOptions);
 						writer.flush();
