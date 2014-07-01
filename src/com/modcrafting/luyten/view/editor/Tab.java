@@ -15,8 +15,9 @@ import com.modcrafting.luyten.Model;
 
 /**
  * This class represents the tab component of editor JTabbedPane.
+ * 
  * @author Perfect Slayer (bruce.bujon@gmail.com)
- *
+ * 
  */
 public class Tab extends JPanel {
 	/** Serialization id. */
@@ -52,6 +53,20 @@ public class Tab extends JPanel {
 		closeButton.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent event) {
+				// Check event
+				if (event.getButton()!=MouseEvent.BUTTON1)
+					return;
+				// Close the tab
+				model.closeTab(Tab.this);
+			}
+		});
+		// Attach tab behavior
+		this.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent event) {
+				// Check event
+				if (event.getButton()!=MouseEvent.BUTTON2)
+					return;
 				// Close the tab
 				model.closeTab(Tab.this);
 			}
