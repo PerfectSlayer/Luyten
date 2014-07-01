@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,7 +38,11 @@ public class JarModel extends AbstractModel {
 		FileSystem fileSystem = null;
 		try {
 			URI uri = new URI(jarUri);
-			fileSystem = FileSystems.newFileSystem(uri, new HashMap<String, String>(), null);
+			try {
+				fileSystem = FileSystems.getFileSystem(uri);
+			} catch (FileSystemNotFoundException exception) {
+				fileSystem = FileSystems.newFileSystem(uri, new HashMap<String, String>(), null);
+			}
 		} catch (IOException|URISyntaxException exception) {
 			throw new Exception("Unable to create JAR file system.", exception);
 		}
