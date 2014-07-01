@@ -25,7 +25,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.KeyStroke;
-import javax.swing.border.BevelBorder;
 
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 
@@ -98,11 +97,6 @@ public class MainWindow extends JFrame {
 		fileSaver = new FileSaver(bar, label);
 
 		this.setExitOnEscWhenEnabled(model);
-
-		if (fileFromCommandLine == null || fileFromCommandLine.getName().toLowerCase().endsWith(".jar") ||
-				fileFromCommandLine.getName().toLowerCase().endsWith(".zip")) {
-			model.startWarmUpThread();
-		}
 	}
 
 	public void onOpenFileMenu() {
@@ -117,18 +111,24 @@ public class MainWindow extends JFrame {
 	}
 
 	public void onSaveAsMenu() {
-		RSyntaxTextArea pane = this.getModel().getCurrentTextArea();
-		if (pane == null)
+		// Check if at least one text area is opened
+		RSyntaxTextArea textArea = this.getModel().getCurrentTextArea();
+		if (textArea == null)
 			return;
+		// Get tab title
 		String tabTitle = this.getModel().getCurrentTabTitle();
 		if (tabTitle == null)
 			return;
-
-		String recommendedFileName = tabTitle.replace(".class", ".java");
-		File selectedFile = fileDialog.doSaveDialog(recommendedFileName);
-		if (selectedFile != null) {
-			fileSaver.saveText(pane.getText(), selectedFile);
-		}
+		// Compute recommended file name
+		String recommendedFileName = tabTitle;
+		if (recommendedFileName.endsWith(".class"))
+			recommendedFileName = recommendedFileName.substring(0, recommendedFileName.length()-6)+".java";
+		// Display save dialog to select file
+		File selectedFile = this.fileDialog.doSaveDialog(recommendedFileName);
+		if (selectedFile == null)
+			return;
+		// Save file
+		this.fileSaver.saveText(textArea.getText(), selectedFile);
 	}
 
 	public void onSaveAllMenu() {
@@ -138,7 +138,7 @@ public class MainWindow extends JFrame {
 
 		String fileName = openedFile.getName();
 		if (fileName.endsWith(".class")) {
-			fileName = fileName.replace(".class", ".java");
+			fileName = fileName.substring(0, fileName.length()-6)+".java";
 		} else if (fileName.toLowerCase().endsWith(".jar")) {
 			fileName = "decompiled-" + fileName.replaceAll("\\.[jJ][aA][rR]", ".zip");
 		} else {
@@ -169,16 +169,15 @@ public class MainWindow extends JFrame {
 	}
 
 	public void onFindMenu() {
-		try {
-			RSyntaxTextArea pane = this.getModel().getCurrentTextArea();
-			if (pane != null) {
-				if (findBox == null)
-					findBox = new FindBox(this);
-				findBox.showFindBox();
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+		// Check if at least file editor is opened
+		RSyntaxTextArea textArea = this.getModel().getCurrentTextArea();
+		if (textArea==null)
+			return;
+		// Check if find box is instantiated
+		if (this.findBox==null)
+			this.findBox = new FindBox(this);
+		// Show find box
+		this.findBox.showFindBox();
 	}
 
 	public void onLegalMenu() {

@@ -1,25 +1,19 @@
 package com.modcrafting.luyten;
 
+import java.awt.Component;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.StringWriter;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
@@ -54,8 +48,8 @@ import com.modcrafting.luyten.model.exception.FileEntryNotFoundException;
 import com.modcrafting.luyten.model.exception.FileIsBinaryException;
 import com.modcrafting.luyten.model.exception.TooLargeFileException;
 import com.modcrafting.luyten.model.tree.ResourceNode;
+import com.modcrafting.luyten.view.editor.FileEditor;
 import com.modcrafting.luyten.view.editor.Tab;
-import com.modcrafting.luyten.view.find.FindBox;
 import com.modcrafting.luyten.view.tree.FileCellRenderer;
 import com.strobel.assembler.InputTypeLoader;
 import com.strobel.assembler.metadata.ITypeLoader;
@@ -67,7 +61,6 @@ import com.strobel.core.StringUtilities;
 import com.strobel.core.VerifyArgument;
 import com.strobel.decompiler.DecompilationOptions;
 import com.strobel.decompiler.DecompilerSettings;
-import com.strobel.decompiler.PlainTextOutput;
 
 /**
  * Jar-level model
@@ -82,7 +75,7 @@ public class Model extends JSplitPane {
 	private MetadataSystem metadataSystem = new MetadataSystem(typeLoader);
 
 	private JTree tree;
-	private JTabbedPane house;
+	private JTabbedPane tabbedPane;
 	private File file;
 	private DecompilerSettings settings;
 	private DecompilationOptions decompilationOptions;
@@ -90,7 +83,7 @@ public class Model extends JSplitPane {
 	private MainWindow mainWindow;
 	private JProgressBar bar;
 	private JLabel label;
-	private HashSet<OpenFile> hmap = new HashSet<OpenFile>();
+	private HashSet<FileEditor> fileEditors = new HashSet<FileEditor>();
 	private Set<String> treeExpansionState;
 	private boolean open = false;
 	private State state;
@@ -124,16 +117,16 @@ public class Model extends JSplitPane {
 		tree.setModel(new DefaultTreeModel(null));
 		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
 		tree.setCellRenderer(new FileCellRenderer());
-		tree.addMouseListener(new TreeListener());
+		tree.addMouseListener(new TreeMouseListener());
 
-		house = new JTabbedPane();
-		house.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
-		house.addChangeListener(new TabChangeListener());
+		tabbedPane = new JTabbedPane();
+		tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+		tabbedPane.addChangeListener(new TabChangeListener());
 
 		this.setOrientation(JSplitPane.HORIZONTAL_SPLIT);
 		this.setDividerLocation(250%mainWindow.getWidth());
 		this.setLeftComponent(new JScrollPane(tree));
-		this.setRightComponent(house);
+		this.setRightComponent(tabbedPane);
 
 		decompilationOptions = new DecompilationOptions();
 		decompilationOptions.setSettings(settings);
@@ -141,47 +134,51 @@ public class Model extends JSplitPane {
 	}
 
 	public void showLegal(String legalStr) {
-		OpenFile open = new OpenFile("Legal", "*/Legal", theme, mainWindow);
+		FileEditor open = new FileEditor("Legal", "*/Legal", theme, mainWindow);
 		open.setContent(legalStr);
-		hmap.add(open);
+		fileEditors.add(open);
 		addOrSwitchToTab(open);
 	}
 
-	private void addOrSwitchToTab(final OpenFile open) {
+	/**
+	 * Add or switch to tab.
+	 * 
+	 * @param fileEditor
+	 *            The tab to display.
+	 */
+	private void addOrSwitchToTab(final FileEditor fileEditor) {
 		SwingUtilities.invokeLater(new Runnable() {
 			@Override
 			public void run() {
-				try {
-					// Check if file is already in editor
-					Tab tab = open.tab;
-					if (tab==null) {
-						// Create file view and tab component
-						String title = open.name;
-						tab = new Tab(Model.this, title);
-						open.tab = tab;
-						house.addTab(title, open.scrollPane);
-						int index = house.getTabCount()-1;
-						house.setTabComponentAt(index, tab);
-						house.setSelectedIndex(index);
-					} else {
-						// Get index of the tab
-						int index = Model.this.getTabIndex(tab);
-						if (index==-1)
-							return;
-						// Select the tab
-						house.setSelectedIndex(index);
-					}
-
-					open.onAddedToScreen();
-				} catch (Exception e) {
-					e.printStackTrace();
+				// Check if file is already in editor
+				Tab tab = fileEditor.getTab();
+				if (tab==null) {
+					// Create related tab
+					String title = fileEditor.getResourceName();
+					tab = new Tab(Model.this, title);
+					// Bind tab to file editor
+					fileEditor.setTab(tab);
+					// Add tab to view
+					tabbedPane.addTab(title, fileEditor.getComponent());
+					int index = tabbedPane.getTabCount()-1;
+					tabbedPane.setTabComponentAt(index, tab);
+					tabbedPane.setSelectedIndex(index);
+				} else {
+					// Get index of the tab
+					int index = Model.this.getTabIndex(tab);
+					if (index==-1)
+						return;
+					// Select the tab
+					tabbedPane.setSelectedIndex(index);
 				}
+
+				fileEditor.onAddedToScreen();	// TODO check
 			}
 		});
 	}
 
 	/**
-	 * Close an editor tab.
+	 * Close a file editor tab.
 	 * 
 	 * @param tab
 	 *            The tab to close.
@@ -191,17 +188,21 @@ public class Model extends JSplitPane {
 		int index = this.getTabIndex(tab);
 		if (index==-1)
 			return;
-		RTextScrollPane co = (RTextScrollPane) house.getComponentAt(index);
-		RSyntaxTextArea pane = (RSyntaxTextArea) co.getViewport().getView();
-		OpenFile open = null;
-		for (OpenFile file : hmap)
-			if (pane.equals(file.textArea))
-				open = file;
-		if (open!=null&&hmap.contains(open))
-			hmap.remove(open);
-		house.remove(co);
-		if (open!=null)
-			open.close();
+		// Get related component
+		Component component = this.tabbedPane.getComponentAt(index);
+		// Remove component
+		this.tabbedPane.remove(component);
+		// Get related file editor
+		Iterator<FileEditor> fileEditorIterator = this.fileEditors.iterator();
+		while (fileEditorIterator.hasNext()) {
+			FileEditor fileEditor = fileEditorIterator.next();
+			if (!fileEditor.getComponent().equals(component))
+				continue;
+			// Remove file editor from collection
+			fileEditorIterator.remove();
+			// Close file editor
+			fileEditor.close();
+		}
 	}
 
 	/**
@@ -217,9 +218,9 @@ public class Model extends JSplitPane {
 			return -1;
 		// Get index of the tab
 		int index = 0;
-		int nbrIndex = this.house.getTabCount();
+		int nbrIndex = this.tabbedPane.getTabCount();
 		while (index<nbrIndex) {
-			if (this.house.getTabComponentAt(index)==tab)
+			if (this.tabbedPane.getTabComponentAt(index)==tab)
 				return index;
 			index++;
 		}
@@ -238,15 +239,16 @@ public class Model extends JSplitPane {
 		return path;
 	}
 
-	private class TreeListener extends MouseAdapter {
+	private class TreeMouseListener extends MouseAdapter {
+
 		@Override
-		public void mousePressed(MouseEvent event) {
+		public void mouseClicked(MouseEvent event) {
+			// Check event
+			if (!SwingUtilities.isLeftMouseButton(event))
+				return;
 			boolean isClickCountMatches = (event.getClickCount()==1&&luytenPrefs.isSingleClickOpenEnabled())
 					||(event.getClickCount()==2&&!luytenPrefs.isSingleClickOpenEnabled());
 			if (!isClickCountMatches)
-				return;
-
-			if (!SwingUtilities.isLeftMouseButton(event))
 				return;
 
 			final TreePath trp = tree.getPathForLocation(event.getX(), event.getY());
@@ -309,6 +311,8 @@ public class Model extends JSplitPane {
 						label.setText("Opening: "+name);
 						try (InputStream in = state.jarFile.getInputStream(entry);) {
 							extractSimpleFileEntryToTextPane(in, name, path);
+						} catch (Exception exception) {
+							exception.printStackTrace();
 						}
 					}
 				}
@@ -354,100 +358,80 @@ public class Model extends JSplitPane {
 		if (type==null||((resolvedType = type.resolve())==null))
 			throw new Exception("Unable to resolve type.");
 		// Check each already opened files
-		for (OpenFile openFile : hmap) {
+		for (FileEditor openFile : fileEditors) {
 			// Check if path match
-			if (path.equals(openFile.path)) {
-				// Check if type changed or content is invalid
-				if (!type.equals(openFile.getType())||!openFile.isContentValid()) {
-					openFile.invalidateContent();
-					openFile.setDecompilerReferences(metadataSystem, settings, decompilationOptions);
-					openFile.setType(resolvedType);
-					openFile.resetScrollPosition();
-					openFile.decompile();
-				}
+			if (!path.equals(openFile.getResourcePath()))
+				continue;
+			// Select related tab
+			this.addOrSwitchToTab(openFile);
+			// Check if type changed or content is invalid
+			if (!type.equals(openFile.getType())||!openFile.isContentValid()) {
+				// Update file editor content
+				openFile.setDecompilerReferences(metadataSystem, settings, decompilationOptions);
+				openFile.setType(resolvedType);
 				openFile.setInitialNavigationLink(navigatonLink);
-				// Select related tab
-				this.addOrSwitchToTab(openFile);
-				return;
+				openFile.decompile();
 			}
+			return;
 		}
-		// Create new opened file
-		OpenFile open = new OpenFile(tabTitle, path, this.theme, this.mainWindow);
-		open.setDecompilerReferences(this.metadataSystem, this.settings, this.decompilationOptions);
-		open.setType(resolvedType);
-		open.setInitialNavigationLink(navigatonLink);
-		open.decompile();
-		this.hmap.add(open);
+		// Create new file editor
+		FileEditor fileEditor = new FileEditor(tabTitle, path, this.theme, this.mainWindow);
 		// Add opened file editor tab
-		this.addOrSwitchToTab(open);
+		this.fileEditors.add(fileEditor);
+		this.addOrSwitchToTab(fileEditor);
+		// Update file editor content
+		fileEditor.setDecompilerReferences(this.metadataSystem, this.settings, this.decompilationOptions);
+		fileEditor.setType(resolvedType);
+		fileEditor.setInitialNavigationLink(navigatonLink);
+		fileEditor.decompile();
 	}
 
 	private void extractSimpleFileEntryToTextPane(InputStream inputStream, String tabTitle, String path) throws Exception {
-		if (inputStream==null||tabTitle==null||tabTitle.trim().length()<1||path==null) {
+		// Check parameter
+		if (inputStream==null||tabTitle==null||tabTitle.trim().length()<1||path==null)
 			throw new FileEntryNotFoundException();
+		// Check file type
+		int index = path.lastIndexOf(".");
+		if (index ==-1)
+			throw new FileIsBinaryException();
+		String extension = path.substring(index);
+		if (!FileEditor.WELL_KNOWN_TEXT_FILE_EXTENSIONS.contains(extension))
+			throw new FileIsBinaryException();
+		// Check if file editor is already opened
+		for (FileEditor fileEditor : this.fileEditors) {
+			// Check if file editor has the same resource path
+			if (!path.equals(fileEditor.getResourcePath()))
+				continue;
+			// Display the already opened file editor
+			this.addOrSwitchToTab(fileEditor);
 		}
-		OpenFile sameTitledOpen = null;
-		for (OpenFile nextOpen : hmap) {
-			if (tabTitle.equals(nextOpen.name)) {
-				sameTitledOpen = nextOpen;
-				break;
-			}
-		}
-		if (sameTitledOpen!=null&&path.equals(sameTitledOpen.path)) {
-			addOrSwitchToTab(sameTitledOpen);
-			return;
-		}
-
-		// build tab content
-		StringBuilder sb = new StringBuilder();
-		long nonprintableCharactersCount = 0;
+		// Create file editor
+		FileEditor fileEditor = new FileEditor(tabTitle, path, theme, mainWindow);
+		this.fileEditors.add(fileEditor);
+		// Display file editor
+		this.addOrSwitchToTab(fileEditor);
+		// Read file content
+		StringBuilder stringBuilder = new StringBuilder();
 		try (InputStreamReader inputStreamReader = new InputStreamReader(inputStream); BufferedReader reader = new BufferedReader(inputStreamReader);) {
 			String line;
 			while ((line = reader.readLine())!=null) {
-				sb.append(line).append("\n");
-
-				for (byte nextByte : line.getBytes()) {
-					if (nextByte<=0) {
-						nonprintableCharactersCount++;
-					}
-				}
-
+				stringBuilder.append(line).append("\n");
 			}
 		}
-
-		// guess binary or text
-		String extension = "."+tabTitle.replaceAll("^[^\\.]*$", "").replaceAll("[^\\.]*\\.", "");
-		boolean isTextFile = (OpenFile.WELL_KNOWN_TEXT_FILE_EXTENSIONS.contains(extension)||nonprintableCharactersCount<sb.length()/5);
-		if (!isTextFile) {
-			throw new FileIsBinaryException();
-		}
-
-		// open tab
-		if (sameTitledOpen!=null) {
-			sameTitledOpen.path = path;
-			sameTitledOpen.setDecompilerReferences(metadataSystem, settings, decompilationOptions);
-			sameTitledOpen.resetScrollPosition();
-			sameTitledOpen.setContent(sb.toString());
-			addOrSwitchToTab(sameTitledOpen);
-		} else {
-			OpenFile open = new OpenFile(tabTitle, path, theme, mainWindow);
-			open.setDecompilerReferences(metadataSystem, settings, decompilationOptions);
-			open.setContent(sb.toString());
-			hmap.add(open);
-			addOrSwitchToTab(open);
-		}
+		// Set file editor content
+		fileEditor.setDecompilerReferences(metadataSystem, settings, decompilationOptions);
+		fileEditor.setContent(stringBuilder.toString());
 	}
 
 	private class TabChangeListener implements ChangeListener {
 		@Override
 		public void stateChanged(ChangeEvent e) {
-			int selectedIndex = house.getSelectedIndex();
+			int selectedIndex = tabbedPane.getSelectedIndex();
 			if (selectedIndex<0) {
 				return;
 			}
-			for (OpenFile open : hmap) {
-				if (house.indexOfTab(open.name)==selectedIndex) {
-
+			for (FileEditor open : fileEditors) {
+				if (tabbedPane.indexOfTab(open.getResourceName())==selectedIndex) {
 					if (open.getType()!=null&&!open.isContentValid()) {
 						updateOpenClass(open);
 						break;
@@ -459,14 +443,14 @@ public class Model extends JSplitPane {
 	}
 
 	public void updateOpenClasses() {
-		// invalidate all open classes (update will hapen at tab change)
-		for (OpenFile open : hmap) {
+		// invalidate all open classes (update will happen at tab change)
+		for (FileEditor open : fileEditors) {
 			if (open.getType()!=null) {
 				open.invalidateContent();
 			}
 		}
 		// update the current open tab - if it is a class
-		for (OpenFile open : hmap) {
+		for (FileEditor open : fileEditors) {
 			if (open.getType()!=null&&isTabInForeground(open)) {
 				updateOpenClass(open);
 				break;
@@ -474,7 +458,7 @@ public class Model extends JSplitPane {
 		}
 	}
 
-	private void updateOpenClass(final OpenFile open) {
+	private void updateOpenClass(final FileEditor open) {
 		if (open.getType()==null) {
 			return;
 		}
@@ -483,12 +467,12 @@ public class Model extends JSplitPane {
 			public void run() {
 				try {
 					bar.setVisible(true);
-					label.setText("Extracting: "+open.name);
+					label.setText("Extracting: "+open.getResourceName());
 					open.invalidateContent();
 					open.decompile();
 					label.setText("Complete");
 				} catch (Exception e) {
-					label.setText("Error, cannot update: "+open.name);
+					label.setText("Error, cannot update: "+open.getResourceName());
 				} finally {
 					bar.setVisible(false);
 				}
@@ -496,10 +480,10 @@ public class Model extends JSplitPane {
 		}).start();
 	}
 
-	private boolean isTabInForeground(OpenFile open) {
-		String title = open.name;
-		int selectedIndex = house.getSelectedIndex();
-		return (selectedIndex>=0&&selectedIndex==house.indexOfTab(title));
+	private boolean isTabInForeground(FileEditor open) {
+		String title = open.getResourceName();
+		int selectedIndex = tabbedPane.getSelectedIndex();
+		return (selectedIndex>=0&&selectedIndex==tabbedPane.indexOfTab(title));
 	}
 
 	private final class State implements AutoCloseable {
@@ -725,15 +709,15 @@ public class Model extends JSplitPane {
 	private TreeNode buildHierarchicalTreeNode(List<String> jarEntries) {
 		// Get root name
 		String fileName = this.getName(this.file.getName());
-//		// Create resource nodes
-//		ResourceNode rootNode = new ResourceNode(getName(file.getName()), true);
-//		for (String jarEntry : jarEntries) {
-//			String[] entryPaths = jarEntry.split("/");
-//			this.buildRecursiveResourceNode(rootNode, 0, entryPaths);
-//		}
-//		// Sort resource nodes
-//		rootNode.sort();
-		
+		// // Create resource nodes
+		// ResourceNode rootNode = new ResourceNode(getName(file.getName()), true);
+		// for (String jarEntry : jarEntries) {
+		// String[] entryPaths = jarEntry.split("/");
+		// this.buildRecursiveResourceNode(rootNode, 0, entryPaths);
+		// }
+		// // Sort resource nodes
+		// rootNode.sort();
+
 		JarModel jarModel = null;
 		try {
 			jarModel = new JarModel(this.file.toPath());
@@ -742,7 +726,7 @@ public class Model extends JSplitPane {
 			e.printStackTrace();
 		}
 		ResourceNode rootNode = jarModel.getResources();
-		
+
 		// Create tree nodes
 		DefaultMutableTreeNode rootTreeNode = new DefaultMutableTreeNode(new TreeNodeUserObject(fileName));
 		this.convertRecursiveTreeNode(rootNode, rootTreeNode);
@@ -836,10 +820,10 @@ public class Model extends JSplitPane {
 	}
 
 	public void closeFile() {
-		for (OpenFile co : hmap) {
-			int pos = house.indexOfTab(co.name);
+		for (FileEditor co : fileEditors) {
+			int pos = tabbedPane.indexOfTab(co.getResourceName());
 			if (pos>=0)
-				house.remove(pos);
+				tabbedPane.remove(pos);
 			co.close();
 		}
 
@@ -852,7 +836,7 @@ public class Model extends JSplitPane {
 			}
 		}
 
-		hmap.clear();
+		fileEditors.clear();
 		tree.setModel(new DefaultTreeModel(null));
 		metadataSystem = new MetadataSystem(typeLoader);
 		file = null;
@@ -866,8 +850,8 @@ public class Model extends JSplitPane {
 		try {
 			if (in!=null) {
 				theme = Theme.load(in);
-				for (OpenFile f : hmap) {
-					theme.apply(f.textArea);
+				for (FileEditor fileEditor : fileEditors) {
+					theme.apply(fileEditor.getTextArea());
 				}
 			}
 		} catch (Exception e1) {
@@ -890,9 +874,9 @@ public class Model extends JSplitPane {
 	public String getCurrentTabTitle() {
 		String tabTitle = null;
 		try {
-			int pos = house.getSelectedIndex();
+			int pos = tabbedPane.getSelectedIndex();
 			if (pos>=0) {
-				tabTitle = house.getTitleAt(pos);
+				tabTitle = tabbedPane.getTitleAt(pos);
 			}
 		} catch (Exception e1) {
 			e1.printStackTrace();
@@ -906,9 +890,9 @@ public class Model extends JSplitPane {
 	public RSyntaxTextArea getCurrentTextArea() {
 		RSyntaxTextArea currentTextArea = null;
 		try {
-			int pos = house.getSelectedIndex();
+			int pos = tabbedPane.getSelectedIndex();
 			if (pos>=0) {
-				RTextScrollPane co = (RTextScrollPane) house.getComponentAt(pos);
+				RTextScrollPane co = (RTextScrollPane) tabbedPane.getComponentAt(pos);
 				currentTextArea = (RSyntaxTextArea) co.getViewport().getView();
 			}
 		} catch (Exception e1) {
@@ -918,33 +902,6 @@ public class Model extends JSplitPane {
 			label.setText("No open tab");
 		}
 		return currentTextArea;
-	}
-
-	public void startWarmUpThread() {
-		new Thread() {
-			public void run() {
-				try {
-					Thread.sleep(500);
-					String internalName = FindBox.class.getName();
-					TypeReference type = metadataSystem.lookupType(internalName);
-					TypeDefinition resolvedType = null;
-					if ((type==null)||((resolvedType = type.resolve())==null)) {
-						return;
-					}
-					StringWriter stringwriter = new StringWriter();
-					settings.getLanguage().decompileType(resolvedType, new PlainTextOutput(stringwriter), decompilationOptions);
-					String decompiledSource = stringwriter.toString();
-					OpenFile open = new OpenFile(internalName, "*/"+internalName, theme, mainWindow);
-					open.setContent(decompiledSource);
-					JTabbedPane pane = new JTabbedPane();
-					pane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
-					pane.addTab("title", open.scrollPane);
-					pane.setSelectedIndex(pane.indexOfTab("title"));
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		}.start();
 	}
 
 	public void navigateTo(final String uniqueStr) {

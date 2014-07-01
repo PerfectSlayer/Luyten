@@ -1,10 +1,7 @@
-package com.modcrafting.luyten;
+package com.modcrafting.luyten.view.editor;
 
 import java.awt.Cursor;
-import java.awt.Panel;
 import java.awt.Rectangle;
-import java.awt.event.AdjustmentEvent;
-import java.awt.event.AdjustmentListener;
 import java.awt.event.InputEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
@@ -16,6 +13,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JScrollBar;
 import javax.swing.ScrollPaneConstants;
@@ -25,11 +23,13 @@ import javax.swing.event.HyperlinkEvent;
 import org.fife.ui.rsyntaxtextarea.LinkGenerator;
 import org.fife.ui.rsyntaxtextarea.LinkGeneratorResult;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
-import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rtextarea.RTextScrollPane;
 
-import com.modcrafting.luyten.view.editor.Tab;
+import com.modcrafting.luyten.DecompilerLinkProvider;
+import com.modcrafting.luyten.LinkProvider;
+import com.modcrafting.luyten.MainWindow;
+import com.modcrafting.luyten.Selection;
 import com.strobel.assembler.metadata.MetadataSystem;
 import com.strobel.assembler.metadata.TypeDefinition;
 import com.strobel.decompiler.DecompilationOptions;
@@ -37,12 +37,11 @@ import com.strobel.decompiler.DecompilerSettings;
 import com.strobel.decompiler.PlainTextOutput;
 import com.strobel.decompiler.languages.Languages;
 
-public class OpenFile implements SyntaxConstants {
+public class FileEditor {
 
-	public static final HashSet<String> WELL_KNOWN_TEXT_FILE_EXTENSIONS = new HashSet<>(Arrays.asList(
-			".java", ".xml", ".rss", ".project", ".classpath", ".h", ".sql", ".js", ".php", ".php5",
-			".phtml", ".html", ".htm", ".xhtm", ".xhtml", ".lua", ".bat", ".pl", ".sh", ".css",
-			".json", ".txt", ".rb", ".make", ".mak", ".py", ".properties", ".prop"));
+	public static final HashSet<String> WELL_KNOWN_TEXT_FILE_EXTENSIONS = new HashSet<>(Arrays.asList(".java", ".xml", ".rss", ".project", ".classpath", ".h",
+			".sql", ".js", ".php", ".php5", ".phtml", ".html", ".htm", ".xhtm", ".xhtml", ".lua", ".bat", ".pl", ".sh", ".css", ".json", ".txt", ".rb",
+			".make", ".mak", ".py", ".properties", ".prop"));
 
 	// navigation links
 	private TreeMap<Selection, String> selectionToUniqueStrTreeMap = new TreeMap<>();
@@ -52,19 +51,68 @@ public class OpenFile implements SyntaxConstants {
 	private volatile boolean isContentValid = false;
 	private volatile boolean isNavigationLinksValid = false;
 	private volatile boolean isWaitForLinksCursor = false;
-	private volatile Double lastScrollPercent = null;
 
 	private LinkProvider linkProvider;
 	private String initialNavigationLink;
 	private boolean isFirstTimeRun = true;
 
 	MainWindow mainWindow;
-	RTextScrollPane scrollPane;
 	RSyntaxTextArea textArea;
+	/** The file editor scrollpane. */
+	private RTextScrollPane scrollPane;
 	/** The file editor tab. */
-	Tab tab;
-	String name;
-	String path;
+	private Tab tab;
+
+	/**
+	 * Get the file editor component.
+	 * 
+	 * @return The file editor component.
+	 */
+	public JComponent getComponent() {
+		return this.scrollPane;
+	}
+
+	/**
+	 * Get the file editor tab.
+	 * 
+	 * @return The file editor tab.
+	 */
+	public Tab getTab() {
+		return this.tab;
+	}
+
+	/**
+	 * Set the file editor tab.
+	 * 
+	 * @param tab
+	 *            The file editor tab to set.
+	 */
+	public void setTab(Tab tab) {
+		this.tab = tab;
+	}
+
+	/** The edited resource name. */
+	private String resourceName; // TODO get from path ?
+	/** The edited resource path. */
+	private String resourcePath; // TODO path ?
+
+	/**
+	 * Get the edited resource name.
+	 * 
+	 * @return The edited resource name.
+	 */
+	public String getResourceName() {
+		return this.resourceName;
+	}
+
+	/**
+	 * Get the edited resource path.
+	 * 
+	 * @return The edited resource path.
+	 */
+	public String getResourcePath() {
+		return this.resourcePath;
+	}
 
 	// decompiler and type references (not needed for text files)
 	private MetadataSystem metadataSystem;
@@ -72,88 +120,26 @@ public class OpenFile implements SyntaxConstants {
 	private DecompilationOptions decompilationOptions;
 	private TypeDefinition type;
 
-	public OpenFile(String name, String path, Theme theme, MainWindow mainWindow) {
-		this.name = name;
-		this.path = path;
+	public FileEditor(String resourceName, String resourcePath, Theme theme, MainWindow mainWindow) {
+		this.resourceName = resourceName;
+		this.resourcePath = resourcePath;
 		this.mainWindow = mainWindow;
-		textArea = new RSyntaxTextArea(25, 70);
-		textArea.setCaretPosition(0);
-		textArea.requestFocusInWindow();
-		textArea.setMarkOccurrences(true);
-		textArea.setClearWhitespaceLinesEnabled(false);
-		textArea.setEditable(false);
-		textArea.setAntiAliasingEnabled(true);
-		textArea.setCodeFoldingEnabled(true);
-		if (name.toLowerCase().endsWith(".class")
-				|| name.toLowerCase().endsWith(".java"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_JAVA);
-		else if (name.toLowerCase().endsWith(".xml")
-				|| name.toLowerCase().endsWith(".rss")
-				|| name.toLowerCase().endsWith(".project")
-				|| name.toLowerCase().endsWith(".classpath"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_XML);
-		else if (name.toLowerCase().endsWith(".h"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_C);
-		else if (name.toLowerCase().endsWith(".sql"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_SQL);
-		else if (name.toLowerCase().endsWith(".js"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_JAVASCRIPT);
-		else if (name.toLowerCase().endsWith(".php")
-				|| name.toLowerCase().endsWith(".php5")
-				|| name.toLowerCase().endsWith(".phtml"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_PHP);
-		else if (name.toLowerCase().endsWith(".html")
-				|| name.toLowerCase().endsWith(".htm")
-				|| name.toLowerCase().endsWith(".xhtm")
-				|| name.toLowerCase().endsWith(".xhtml"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_HTML);
-		else if (name.toLowerCase().endsWith(".js"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_JAVASCRIPT);
-		else if (name.toLowerCase().endsWith(".lua"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_LUA);
-		else if (name.toLowerCase().endsWith(".bat"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_WINDOWS_BATCH);
-		else if (name.toLowerCase().endsWith(".pl"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_PERL);
-		else if (name.toLowerCase().endsWith(".sh"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_UNIX_SHELL);
-		else if (name.toLowerCase().endsWith(".css"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_CSS);
-		else if (name.toLowerCase().endsWith(".json"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_JSON);
-		else if (name.toLowerCase().endsWith(".txt"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_NONE);
-		else if (name.toLowerCase().endsWith(".rb"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_RUBY);
-		else if (name.toLowerCase().endsWith(".make")
-				|| name.toLowerCase().endsWith(".mak"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_MAKEFILE);
-		else if (name.toLowerCase().endsWith(".py"))
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_PYTHON);
-		else
-			textArea.setSyntaxEditingStyle(SYNTAX_STYLE_PROPERTIES_FILE);
-		scrollPane = new RTextScrollPane(textArea, true);
+		// Create text area
+		this.textArea = new RSyntaxTextArea(25, 70);
+		this.textArea.setCaretPosition(0);
+		this.textArea.requestFocusInWindow();
+		this.textArea.setMarkOccurrences(true);
+		this.textArea.setClearWhitespaceLinesEnabled(false);
+		this.textArea.setEditable(false);
+		this.textArea.setAntiAliasingEnabled(true);
+		this.textArea.setCodeFoldingEnabled(true);
+		this.textArea.setSyntaxEditingStyle(FileEditorSyntax.getSyntax(this.resourceName));
+		scrollPane = new RTextScrollPane(this.textArea, true);
 		scrollPane.setIconRowHeaderEnabled(true);
 		textArea.setText("");
 		theme.apply(textArea);
 
 		scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
-		final JScrollBar verticalScrollbar = scrollPane.getVerticalScrollBar();
-		if (verticalScrollbar != null) {
-			verticalScrollbar.addAdjustmentListener(new AdjustmentListener() {
-				@Override
-				public void adjustmentValueChanged(AdjustmentEvent e) {
-					String content = textArea.getText();
-					if (content == null || content.length() == 0)
-						return;
-					int scrollValue = verticalScrollbar.getValue() - verticalScrollbar.getMinimum();
-					int scrollMax = verticalScrollbar.getMaximum() - verticalScrollbar.getMinimum();
-					if (scrollMax < 1 || scrollValue < 0 || scrollValue > scrollMax)
-						return;
-					lastScrollPercent = (((double) scrollValue) / ((double) scrollMax));
-				}
-			});
-		}
 
 		textArea.setHyperlinksEnabled(true);
 		textArea.setLinkScanningMask(InputEvent.CTRL_DOWN_MASK);
@@ -163,7 +149,7 @@ public class OpenFile implements SyntaxConstants {
 			public LinkGeneratorResult isLinkAtOffset(RSyntaxTextArea textArea, final int offs) {
 				final String uniqueStr = getUniqueStrForOffset(offs);
 				final Integer selectionFrom = getSelectionFromForOffset(offs);
-				if (uniqueStr != null && selectionFrom != null) {
+				if (uniqueStr!=null&&selectionFrom!=null) {
 					return new LinkGeneratorResult() {
 						@Override
 						public HyperlinkEvent execute() {
@@ -192,27 +178,27 @@ public class OpenFile implements SyntaxConstants {
 			public synchronized void mouseMoved(MouseEvent e) {
 				String linkText = null;
 				boolean isLinkLabel = false;
-				boolean isCtrlDown = (e.getModifiersEx() & InputEvent.CTRL_DOWN_MASK) != 0;
+				boolean isCtrlDown = (e.getModifiersEx()&InputEvent.CTRL_DOWN_MASK)!=0;
 				if (isCtrlDown) {
 					linkText = createLinkLabel(e);
-					isLinkLabel = linkText != null;
+					isLinkLabel = linkText!=null;
 				}
-				if (isCtrlDown && isWaitForLinksCursor) {
+				if (isCtrlDown&&isWaitForLinksCursor) {
 					textArea.setCursor(new Cursor(Cursor.WAIT_CURSOR));
-				} else if (textArea.getCursor().getType() == Cursor.WAIT_CURSOR) {
+				} else if (textArea.getCursor().getType()==Cursor.WAIT_CURSOR) {
 					textArea.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
 				}
 
-				JLabel label = OpenFile.this.mainWindow.getLabel();
+				JLabel label = FileEditor.this.mainWindow.getLabel();
 
-				if (isLinkLabel && isLinkLabelPrev) {
+				if (isLinkLabel&&isLinkLabelPrev) {
 					if (!linkText.equals(prevLinkText)) {
 						setLinkLabel(label, linkText);
 					}
-				} else if (isLinkLabel && !isLinkLabelPrev) {
+				} else if (isLinkLabel&&!isLinkLabelPrev) {
 					setLinkLabel(label, linkText);
 
-				} else if (!isLinkLabel && isLinkLabelPrev) {
+				} else if (!isLinkLabel&&isLinkLabelPrev) {
 					setLinkLabel(label, null);
 				}
 				isLinkLabelPrev = isLinkLabel;
@@ -221,10 +207,10 @@ public class OpenFile implements SyntaxConstants {
 
 			private void setLinkLabel(JLabel label, String text) {
 				String current = label.getText();
-				if (text == null && current != null)
-					if (current.startsWith("Navigating:") || current.startsWith("Cannot navigate:"))
+				if (text==null&&current!=null)
+					if (current.startsWith("Navigating:")||current.startsWith("Cannot navigate:"))
 						return;
-				label.setText(text != null ? text : "Complete");
+				label.setText(text!=null ? text : "Complete");
 			}
 
 			private String createLinkLabel(MouseEvent e) {
@@ -237,19 +223,30 @@ public class OpenFile implements SyntaxConstants {
 		});
 	}
 
-	public void setContent(String content) {
-		textArea.setText(content);
+	public void setContent(final String content) {
+		SwingUtilities.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				FileEditor.this.textArea.setText(content);
+			}
+		});
+	}
+
+	public RSyntaxTextArea getTextArea() {
+		return this.textArea;
 	}
 
 	public void decompile() {
 		this.invalidateContent();
 		// synchronized: do not accept changes from menu while running
+		boolean hasNavigationLinks = false;
 		synchronized (settings) {
-			if (Languages.java().getName().equals(settings.getLanguage().getName())) {
-				decompileWithNavigationLinks();
-			} else {
-				decompileWithoutLinks();
-			}
+			hasNavigationLinks = Languages.java().equals(settings.getLanguage());
+		}
+		if (hasNavigationLinks) {
+			decompileWithNavigationLinks();
+		} else {
+			decompileWithoutLinks();
 		}
 	}
 
@@ -260,7 +257,7 @@ public class OpenFile implements SyntaxConstants {
 
 		StringWriter stringwriter = new StringWriter();
 		settings.getLanguage().decompileType(type, new PlainTextOutput(stringwriter), decompilationOptions);
-		setContentPreserveLastScrollPosition(stringwriter.toString());
+		this.textArea.setText(stringwriter.toString());
 		this.isContentValid = true;
 	}
 
@@ -272,24 +269,9 @@ public class OpenFile implements SyntaxConstants {
 		linkProvider = newLinkProvider;
 
 		linkProvider.generateContent();
-		setContentPreserveLastScrollPosition(linkProvider.getTextContent());
+		this.textArea.setText(linkProvider.getTextContent());
 		this.isContentValid = true;
 		enableLinks();
-	}
-
-	private void setContentPreserveLastScrollPosition(final String content) {
-		final Double scrollPercent = lastScrollPercent;
-		if (scrollPercent != null && initialNavigationLink == null) {
-			SwingUtilities.invokeLater(new Runnable() {
-				@Override
-				public void run() {
-					textArea.setText(content);
-					restoreScrollPosition(scrollPercent);
-				}
-			});
-		} else {
-			textArea.setText(content);
-		}
 	}
 
 	private void restoreScrollPosition(final double position) {
@@ -297,13 +279,13 @@ public class OpenFile implements SyntaxConstants {
 			@Override
 			public void run() {
 				JScrollBar verticalScrollbar = scrollPane.getVerticalScrollBar();
-				if (verticalScrollbar == null)
+				if (verticalScrollbar==null)
 					return;
-				int scrollMax = verticalScrollbar.getMaximum() - verticalScrollbar.getMinimum();
-				long newScrollValue = Math.round(position * scrollMax) + verticalScrollbar.getMinimum();
-				if (newScrollValue < verticalScrollbar.getMinimum())
+				int scrollMax = verticalScrollbar.getMaximum()-verticalScrollbar.getMinimum();
+				long newScrollValue = Math.round(position*scrollMax)+verticalScrollbar.getMinimum();
+				if (newScrollValue<verticalScrollbar.getMinimum())
 					newScrollValue = verticalScrollbar.getMinimum();
-				if (newScrollValue > verticalScrollbar.getMaximum())
+				if (newScrollValue>verticalScrollbar.getMaximum())
 					newScrollValue = verticalScrollbar.getMaximum();
 				verticalScrollbar.setValue((int) newScrollValue);
 			}
@@ -311,7 +293,7 @@ public class OpenFile implements SyntaxConstants {
 	}
 
 	private void enableLinks() {
-		if (initialNavigationLink != null) {
+		if (initialNavigationLink!=null) {
 			doEnableLinks();
 		} else {
 			new Thread(new Runnable() {
@@ -349,13 +331,13 @@ public class OpenFile implements SyntaxConstants {
 	}
 
 	private void warmUpWithFirstLink() {
-		if (selectionToUniqueStrTreeMap.keySet().size() > 0) {
+		if (selectionToUniqueStrTreeMap.keySet().size()>0) {
 			Selection selection = selectionToUniqueStrTreeMap.keySet().iterator().next();
 			getLinkDescriptionForOffset(selection.from);
 		}
 	}
 
-	public void clearLinksCache() {
+	private void clearLinksCache() {
 		try {
 			isNavigableCache.clear();
 			readableLinksCache.clear();
@@ -385,7 +367,7 @@ public class OpenFile implements SyntaxConstants {
 		if (isNavigationLinksValid) {
 			Selection offsetSelection = new Selection(offset, offset);
 			Selection floorSelection = selectionToUniqueStrTreeMap.floorKey(offsetSelection);
-			if (floorSelection != null && floorSelection.from <= offset && floorSelection.to > offset) {
+			if (floorSelection!=null&&floorSelection.from<=offset&&floorSelection.to>offset) {
 				return floorSelection;
 			}
 		}
@@ -394,9 +376,9 @@ public class OpenFile implements SyntaxConstants {
 
 	private String getUniqueStrForOffset(int offset) {
 		Selection selection = getSelectionForOffset(offset);
-		if (selection != null) {
+		if (selection!=null) {
 			String uniqueStr = selectionToUniqueStrTreeMap.get(selection);
-			if (this.isLinkNavigable(uniqueStr) && this.getLinkDescription(uniqueStr) != null) {
+			if (this.isLinkNavigable(uniqueStr)&&this.getLinkDescription(uniqueStr)!=null) {
 				return uniqueStr;
 			}
 		}
@@ -405,7 +387,7 @@ public class OpenFile implements SyntaxConstants {
 
 	private Integer getSelectionFromForOffset(int offset) {
 		Selection selection = getSelectionForOffset(offset);
-		if (selection != null) {
+		if (selection!=null) {
 			return selection.from;
 		}
 		return null;
@@ -413,9 +395,9 @@ public class OpenFile implements SyntaxConstants {
 
 	private String getLinkDescriptionForOffset(int offset) {
 		String uniqueStr = getUniqueStrForOffset(offset);
-		if (uniqueStr != null) {
+		if (uniqueStr!=null) {
 			String description = this.getLinkDescription(uniqueStr);
-			if (description != null) {
+			if (description!=null) {
 				return description;
 			}
 		}
@@ -425,7 +407,7 @@ public class OpenFile implements SyntaxConstants {
 	private boolean isLinkNavigable(String uniqueStr) {
 		try {
 			Boolean isNavigableCached = isNavigableCache.get(uniqueStr);
-			if (isNavigableCached != null)
+			if (isNavigableCached!=null)
 				return isNavigableCached;
 
 			boolean isNavigable = linkProvider.isLinkNavigable(uniqueStr);
@@ -440,11 +422,11 @@ public class OpenFile implements SyntaxConstants {
 	private String getLinkDescription(String uniqueStr) {
 		try {
 			String descriptionCached = readableLinksCache.get(uniqueStr);
-			if (descriptionCached != null)
+			if (descriptionCached!=null)
 				return descriptionCached;
 
 			String description = linkProvider.getLinkDescription(uniqueStr);
-			if (description != null && description.trim().length() > 0) {
+			if (description!=null&&description.trim().length()>0) {
 				readableLinksCache.put(uniqueStr, description);
 				return description;
 			}
@@ -461,15 +443,15 @@ public class OpenFile implements SyntaxConstants {
 			onOutboundNavigationRequest(clickedReferenceUniqueStr);
 		} else {
 			JLabel label = this.mainWindow.getLabel();
-			if (label == null)
+			if (label==null)
 				return;
 			String[] linkParts = clickedReferenceUniqueStr.split("\\|");
-			if (linkParts.length <= 1) {
-				label.setText("Cannot navigate: " + clickedReferenceUniqueStr);
+			if (linkParts.length<=1) {
+				label.setText("Cannot navigate: "+clickedReferenceUniqueStr);
 				return;
 			}
 			String destinationTypeStr = linkParts[1];
-			label.setText("Cannot navigate: " + destinationTypeStr.replaceAll("/", "."));
+			label.setText("Cannot navigate: "+destinationTypeStr.replaceAll("/", "."));
 		}
 	}
 
@@ -489,7 +471,7 @@ public class OpenFile implements SyntaxConstants {
 	private void doLocalNavigation(Selection selection) {
 		try {
 			textArea.requestFocusInWindow();
-			if (selection != null) {
+			if (selection!=null) {
 				textArea.setSelectionStart(selection.from);
 				textArea.setSelectionEnd(selection.to);
 				scrollToSelection(selection.from);
@@ -509,19 +491,18 @@ public class OpenFile implements SyntaxConstants {
 				try {
 					int fullHeight = textArea.getBounds().height;
 					int viewportHeight = textArea.getVisibleRect().height;
-					int viewportLineCount = viewportHeight / textArea.getLineHeight();
+					int viewportLineCount = viewportHeight/textArea.getLineHeight();
 					int selectionLineNum = textArea.getLineOfOffset(selectionBeginningOffset);
-					int upperMarginToScroll = Math.round(viewportLineCount * 0.29f);
-					int upperLineToSet = selectionLineNum - upperMarginToScroll;
-					int currentUpperLine = textArea.getVisibleRect().y / textArea.getLineHeight();
+					int upperMarginToScroll = Math.round(viewportLineCount*0.29f);
+					int upperLineToSet = selectionLineNum-upperMarginToScroll;
+					int currentUpperLine = textArea.getVisibleRect().y/textArea.getLineHeight();
 
-					if (selectionLineNum <= currentUpperLine + 2 ||
-							selectionLineNum >= currentUpperLine + viewportLineCount - 4) {
+					if (selectionLineNum<=currentUpperLine+2||selectionLineNum>=currentUpperLine+viewportLineCount-4) {
 						Rectangle rectToScroll = new Rectangle();
 						rectToScroll.x = 0;
 						rectToScroll.width = 1;
-						rectToScroll.y = Math.max(upperLineToSet * textArea.getLineHeight(), 0);
-						rectToScroll.height = Math.min(viewportHeight, fullHeight - rectToScroll.y);
+						rectToScroll.y = Math.max(upperLineToSet*textArea.getLineHeight(), 0);
+						rectToScroll.height = Math.min(viewportHeight, fullHeight-rectToScroll.y);
 						textArea.scrollRectToVisible(rectToScroll);
 					}
 				} catch (Exception e) {
@@ -535,9 +516,7 @@ public class OpenFile implements SyntaxConstants {
 		mainWindow.onNavigationRequest(uniqueStr);
 	}
 
-	public void setDecompilerReferences(MetadataSystem metadataSystem,
-			DecompilerSettings settings,
-			DecompilationOptions decompilationOptions) {
+	public void setDecompilerReferences(MetadataSystem metadataSystem, DecompilerSettings settings, DecompilationOptions decompilationOptions) {
 		this.metadataSystem = metadataSystem;
 		this.settings = settings;
 		this.decompilationOptions = decompilationOptions;
@@ -564,17 +543,13 @@ public class OpenFile implements SyntaxConstants {
 		}
 	}
 
-	public void resetScrollPosition() {
-		lastScrollPercent = null;
-	}
-
 	public void setInitialNavigationLink(String initialNavigationLink) {
 		this.initialNavigationLink = initialNavigationLink;
 	}
 
 	public void onAddedToScreen() {
 		try {
-			if (initialNavigationLink != null) {
+			if (initialNavigationLink!=null) {
 				onLocalNavigationRequest(initialNavigationLink);
 			} else if (isFirstTimeRun) {
 				// warm up scrolling
@@ -587,8 +562,7 @@ public class OpenFile implements SyntaxConstants {
 	}
 
 	/**
-	 * sun.swing.CachedPainter holds on OpenFile for a while
-	 * even after JTabbedPane.remove(component)
+	 * sun.swing.CachedPainter holds on OpenFile for a while even after JTabbedPane.remove(component)
 	 */
 	public void close() {
 		linkProvider = null;
@@ -601,23 +575,23 @@ public class OpenFile implements SyntaxConstants {
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((path == null) ? 0 : path.hashCode());
+		result = prime*result+(resourcePath==null ? 0 : resourcePath.hashCode());
 		return result;
 	}
 
 	@Override
 	public boolean equals(Object obj) {
-		if (this == obj)
+		if (this==obj)
 			return true;
-		if (obj == null)
+		if (obj==null)
 			return false;
-		if (getClass() != obj.getClass())
+		if (getClass()!=obj.getClass())
 			return false;
-		OpenFile other = (OpenFile) obj;
-		if (path == null) {
-			if (other.path != null)
+		FileEditor other = (FileEditor) obj;
+		if (this.resourcePath==null) {
+			if (other.resourcePath!=null)
 				return false;
-		} else if (!path.equals(other.path))
+		} else if (!this.resourcePath.equals(other.resourcePath))
 			return false;
 		return true;
 	}

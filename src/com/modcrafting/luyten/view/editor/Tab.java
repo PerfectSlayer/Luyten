@@ -60,16 +60,5 @@ public class Tab extends JPanel {
 				model.closeTab(Tab.this);
 			}
 		});
-		// Attach tab behavior
-		this.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent event) {
-				// Check event
-				if (event.getButton()!=MouseEvent.BUTTON2)
-					return;
-				// Close the tab
-				model.closeTab(Tab.this);
-			}
-		});
 	}
 }
