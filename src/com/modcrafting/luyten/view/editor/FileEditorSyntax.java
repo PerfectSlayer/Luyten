@@ -58,5 +58,4 @@ public class FileEditorSyntax {
 			return SyntaxConstants.SYNTAX_STYLE_PROPERTIES_FILE;
 		return SyntaxConstants.SYNTAX_STYLE_NONE;
 	}
-
 }

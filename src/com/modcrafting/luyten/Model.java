@@ -134,7 +134,8 @@ public class Model extends JSplitPane {
 	}
 
 	public void showLegal(String legalStr) {
-		FileEditor open = new FileEditor("Legal", "*/Legal", theme, mainWindow);
+		FileEditor open = new FileEditor("Legal", "*/Legal", mainWindow);
+		open.applyTheme(this.theme);
 		open.setContent(legalStr);
 		fileEditors.add(open);
 		addOrSwitchToTab(open);
@@ -196,6 +197,7 @@ public class Model extends JSplitPane {
 		Iterator<FileEditor> fileEditorIterator = this.fileEditors.iterator();
 		while (fileEditorIterator.hasNext()) {
 			FileEditor fileEditor = fileEditorIterator.next();
+			// Check file editor component
 			if (!fileEditor.getComponent().equals(component))
 				continue;
 			// Remove file editor from collection
@@ -309,8 +311,8 @@ public class Model extends JSplitPane {
 						extractClassToTextPane(type, name, path, null);
 					} else {
 						label.setText("Opening: "+name);
-						try (InputStream in = state.jarFile.getInputStream(entry);) {
-							extractSimpleFileEntryToTextPane(in, name, path);
+						try (InputStream inputStream = state.jarFile.getInputStream(entry);) {
+							extractSimpleFileEntryToTextPane(inputStream, name, path);
 						} catch (Exception exception) {
 							exception.printStackTrace();
 						}
@@ -328,8 +330,8 @@ public class Model extends JSplitPane {
 					extractClassToTextPane(type, name, path, null);
 				} else {
 					label.setText("Opening: "+name);
-					try (InputStream in = new FileInputStream(file);) {
-						extractSimpleFileEntryToTextPane(in, name, path);
+					try (InputStream inputStream = new FileInputStream(file);) {
+						extractSimpleFileEntryToTextPane(inputStream, name, path);
 					}
 				}
 			}
@@ -358,16 +360,16 @@ public class Model extends JSplitPane {
 		if (type==null||((resolvedType = type.resolve())==null))
 			throw new Exception("Unable to resolve type.");
 		// Check each already opened files
-		for (FileEditor openFile : fileEditors) {
+		for (FileEditor openFile : this.fileEditors) {
 			// Check if path match
 			if (!path.equals(openFile.getResourcePath()))
 				continue;
 			// Select related tab
 			this.addOrSwitchToTab(openFile);
 			// Check if type changed or content is invalid
-			if (!type.equals(openFile.getType())||!openFile.isContentValid()) {
+			if (!type.equals(openFile.getType())||!openFile.isValidContent()) {
 				// Update file editor content
-				openFile.setDecompilerReferences(metadataSystem, settings, decompilationOptions);
+				openFile.setDecompilerReferences(this.metadataSystem, this.settings, this.decompilationOptions);
 				openFile.setType(resolvedType);
 				openFile.setInitialNavigationLink(navigatonLink);
 				openFile.decompile();
@@ -375,7 +377,8 @@ public class Model extends JSplitPane {
 			return;
 		}
 		// Create new file editor
-		FileEditor fileEditor = new FileEditor(tabTitle, path, this.theme, this.mainWindow);
+		FileEditor fileEditor = new FileEditor(tabTitle, path, this.mainWindow);
+		fileEditor.applyTheme(this.theme);
 		// Add opened file editor tab
 		this.fileEditors.add(fileEditor);
 		this.addOrSwitchToTab(fileEditor);
@@ -406,13 +409,14 @@ public class Model extends JSplitPane {
 			this.addOrSwitchToTab(fileEditor);
 		}
 		// Create file editor
-		FileEditor fileEditor = new FileEditor(tabTitle, path, theme, mainWindow);
+		FileEditor fileEditor = new FileEditor(tabTitle, path, mainWindow);
+		fileEditor.applyTheme(this.theme);
 		this.fileEditors.add(fileEditor);
 		// Display file editor
 		this.addOrSwitchToTab(fileEditor);
 		// Read file content
 		StringBuilder stringBuilder = new StringBuilder();
-		try (InputStreamReader inputStreamReader = new InputStreamReader(inputStream); BufferedReader reader = new BufferedReader(inputStreamReader);) {
+		try (InputStreamReader inputStreamReader = new InputStreamReader(inputStream); BufferedReader reader = new BufferedReader(inputStreamReader)) {
 			String line;
 			while ((line = reader.readLine())!=null) {
 				stringBuilder.append(line).append("\n");
@@ -432,7 +436,7 @@ public class Model extends JSplitPane {
 			}
 			for (FileEditor open : fileEditors) {
 				if (tabbedPane.indexOfTab(open.getResourceName())==selectedIndex) {
-					if (open.getType()!=null&&!open.isContentValid()) {
+					if (open.getType()!=null&&!open.isValidContent()) {
 						updateOpenClass(open);
 						break;
 					}
@@ -468,7 +472,6 @@ public class Model extends JSplitPane {
 				try {
 					bar.setVisible(true);
 					label.setText("Extracting: "+open.getResourceName());
-					open.invalidateContent();
 					open.decompile();
 					label.setText("Complete");
 				} catch (Exception e) {
@@ -851,7 +854,7 @@ public class Model extends JSplitPane {
 			if (in!=null) {
 				theme = Theme.load(in);
 				for (FileEditor fileEditor : fileEditors) {
-					theme.apply(fileEditor.getTextArea());
+					fileEditor.applyTheme(theme);
 				}
 			}
 		} catch (Exception e1) {

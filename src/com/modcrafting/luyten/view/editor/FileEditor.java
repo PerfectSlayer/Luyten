@@ -48,7 +48,7 @@ public class FileEditor {
 	private Map<String, Boolean> isNavigableCache = new ConcurrentHashMap<>();
 	private Map<String, String> readableLinksCache = new ConcurrentHashMap<>();
 
-	private volatile boolean isContentValid = false;
+	private volatile boolean validContent = false;
 	private volatile boolean isNavigationLinksValid = false;
 	private volatile boolean isWaitForLinksCursor = false;
 
@@ -56,8 +56,9 @@ public class FileEditor {
 	private String initialNavigationLink;
 	private boolean isFirstTimeRun = true;
 
-	MainWindow mainWindow;
-	RSyntaxTextArea textArea;
+	private MainWindow mainWindow;
+	private RSyntaxTextArea textArea;
+	
 	/** The file editor scrollpane. */
 	private RTextScrollPane scrollPane;
 	/** The file editor tab. */
@@ -120,7 +121,7 @@ public class FileEditor {
 	private DecompilationOptions decompilationOptions;
 	private TypeDefinition type;
 
-	public FileEditor(String resourceName, String resourcePath, Theme theme, MainWindow mainWindow) {
+	public FileEditor(String resourceName, String resourcePath, MainWindow mainWindow) {
 		this.resourceName = resourceName;
 		this.resourcePath = resourcePath;
 		this.mainWindow = mainWindow;
@@ -134,10 +135,11 @@ public class FileEditor {
 		this.textArea.setAntiAliasingEnabled(true);
 		this.textArea.setCodeFoldingEnabled(true);
 		this.textArea.setSyntaxEditingStyle(FileEditorSyntax.getSyntax(this.resourceName));
+
+		this.invalidateContent();
+
 		scrollPane = new RTextScrollPane(this.textArea, true);
 		scrollPane.setIconRowHeaderEnabled(true);
-		textArea.setText("");
-		theme.apply(textArea);
 
 		scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
 
@@ -175,7 +177,7 @@ public class FileEditor {
 			private String prevLinkText = null;
 
 			@Override
-			public synchronized void mouseMoved(MouseEvent e) {
+			public void mouseMoved(MouseEvent e) {
 				String linkText = null;
 				boolean isLinkLabel = false;
 				boolean isCtrlDown = (e.getModifiersEx()&InputEvent.CTRL_DOWN_MASK)!=0;
@@ -223,17 +225,25 @@ public class FileEditor {
 		});
 	}
 
-	public void setContent(final String content) {
-		SwingUtilities.invokeLater(new Runnable() {
-			@Override
-			public void run() {
-				FileEditor.this.textArea.setText(content);
-			}
-		});
+	/**
+	 * Set the content of the editor.
+	 * 
+	 * @param content
+	 *            The content to set.
+	 */
+	public void setContent(String content) {
+		this.textArea.setText(content);
+		this.validContent = true;
 	}
 
-	public RSyntaxTextArea getTextArea() {
-		return this.textArea;
+	/**
+	 * Apply a theme to the file editor.
+	 * 
+	 * @param theme
+	 *            The theme to apply.
+	 */
+	public void applyTheme(Theme theme) {
+		theme.apply(this.textArea);
 	}
 
 	public void decompile() {
@@ -257,8 +267,7 @@ public class FileEditor {
 
 		StringWriter stringwriter = new StringWriter();
 		settings.getLanguage().decompileType(type, new PlainTextOutput(stringwriter), decompilationOptions);
-		this.textArea.setText(stringwriter.toString());
-		this.isContentValid = true;
+		this.setContent(stringwriter.toString());
 	}
 
 	private void decompileWithNavigationLinks() {
@@ -267,10 +276,8 @@ public class FileEditor {
 		newLinkProvider.setDecompilerReferences(metadataSystem, settings, decompilationOptions);
 		newLinkProvider.setType(type);
 		linkProvider = newLinkProvider;
-
 		linkProvider.generateContent();
-		this.textArea.setText(linkProvider.getTextContent());
-		this.isContentValid = true;
+		this.setContent(linkProvider.getTextContent());
 		enableLinks();
 	}
 
@@ -530,15 +537,18 @@ public class FileEditor {
 		this.type = type;
 	}
 
-	public boolean isContentValid() {
-		return isContentValid;
+	public boolean isValidContent() {
+		return validContent;
 	}
 
+	/**
+	 * Invalidate editor content.
+	 */
 	public void invalidateContent() {
 		try {
-			this.setContent("");
+			this.textArea.setText("");
 		} finally {
-			this.isContentValid = false;
+			this.validContent = false;
 			this.isNavigationLinksValid = false;
 		}
 	}
